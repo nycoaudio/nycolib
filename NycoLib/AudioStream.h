@@ -1,9 +1,11 @@
 #pragma once
 
 #include <memory>
-#include "ownership.h"
 #include <iostream>
 #include <assert.h>
+
+#include "ownership.h"
+#include "NycoMath.h"
 
 
 #pragma region nyco - AudioStream - Declarations
@@ -60,7 +62,7 @@ namespace nyco {
 	public:
 
 		template <typename Deleter>
-		explicit AudioStreamBase(BufferType* data, size_t length, ownership::take_ownership, Deleter d);
+		explicit AudioStreamBase(BufferType* data, size_t length, ownership::take_ownership, Deleter d = std::default_delete<BufferType[]>());
 
 		explicit AudioStreamBase(BufferType* data, size_t length, ownership::no_ownership);
 
@@ -92,10 +94,34 @@ namespace nyco {
 		// does in-place transformation of the stream by the given function and the other stream
 		// same as func(this, other); where func iterates over elements and calls this[i] = inner_func(this[i], other[i]);
 		template <typename Function>
-		requires (std::is_same_v<std::invoke_result_t<Function, BufferType>, BufferType>)
+		requires (std::is_same_v<std::invoke_result_t<Function, BufferType, BufferType>, BufferType>)
 			AudioStreamBase<BufferType>& transform(Function&& func, AudioStreamBase<BufferType> const& other);
 
+		template <typename IntegralT>
+		requires (std::is_integral_v<IntegralT>)
+			AudioStreamBase<BufferType>& shiftLeft(IntegralT const o);
+
+		template <typename IntegralT>
+		requires (std::is_integral_v<IntegralT>)
+			AudioStreamBase<BufferType>& shiftRight(IntegralT const o);
+
+		template <typename IntegralT>
+		requires (std::is_integral_v<IntegralT>)
+			AudioStreamBase<BufferType>& rotateLeft(IntegralT const o);
+
+		template <typename IntegralT>
+		requires (std::is_integral_v<IntegralT>)
+			AudioStreamBase<BufferType>& rotateRight(IntegralT const o);
+
 		AudioStreamBase<BufferType> clone() const;
+
+		BufferType* begin();
+
+		BufferType const* begin() const;
+
+		BufferType* end();
+
+		BufferType const* end() const;
 
 		size_t size();
 
@@ -105,7 +131,7 @@ namespace nyco {
 	public:
 
 		template <typename Function>
-		requires (std::is_same_v<std::invoke_result_t<Function, BufferType>, BufferType>)
+		requires (std::is_same_v<std::invoke_result_t<Function, BufferType, BufferType>, BufferType>)
 			static AudioStreamBase<BufferType> zipWith(AudioStreamBase<BufferType> const& a, AudioStreamBase<BufferType> const& b, Function&& func);
 
 #pragma endregion
@@ -397,7 +423,7 @@ namespace nyco {
 		if (x < 0) {
 			x += m_nLength;
 		}
-		assert(x < m_nLength && x >= 0);
+		assert(x < m_nLength&& x >= 0);
 		return m_pBuffer.get()[x];
 	}
 
@@ -476,109 +502,152 @@ namespace nyco {
 	template <typename BufferType>
 	AudioStreamBase<BufferType> AudioStreamBase<BufferType>::operator+(AudioStreamBase<BufferType> const& o) const
 	{
-		return AudioStreamBase<BufferType>();
+		return AudioStreamBase<BufferType>::zipWith(*this, o, [](BufferType a, BufferType b) {
+			return a + b;
+			});
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType> AudioStreamBase<BufferType>::operator-(AudioStreamBase<BufferType> const& o) const
 	{
-		return AudioStreamBase<BufferType>();
+		return AudioStreamBase<BufferType>::zipWith(*this, o, [](BufferType a, BufferType b) {
+			return a - b;
+			});
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType> AudioStreamBase<BufferType>::operator*(AudioStreamBase<BufferType> const& o) const
 	{
-		return AudioStreamBase<BufferType>();
+		return AudioStreamBase<BufferType>::zipWith(*this, o, [](BufferType a, BufferType b) {
+			return a * b;
+			});
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType> AudioStreamBase<BufferType>::operator/(AudioStreamBase<BufferType> const& o) const
 	{
-		return AudioStreamBase<BufferType>();
+		return AudioStreamBase<BufferType>::zipWith(*this, o, [](BufferType a, BufferType b) {
+			return a / b;
+			});
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType> AudioStreamBase<BufferType>::operator%(AudioStreamBase<BufferType> const& o) const
 	{
-		return AudioStreamBase<BufferType>();
+		return AudioStreamBase<BufferType>::zipWith(*this, o, [](BufferType a, BufferType b) {
+			return std::fmod(a, b);
+			});
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType> AudioStreamBase<BufferType>::operator^(AudioStreamBase<BufferType> const& o) const
 	{
-		return AudioStreamBase<BufferType>();
+		return AudioStreamBase<BufferType>::zipWith(*this, o, [](BufferType a, BufferType b) {
+			return a ^ b;
+			});
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType> AudioStreamBase<BufferType>::operator&(AudioStreamBase<BufferType> const& o) const
 	{
-		return AudioStreamBase<BufferType>();
+		return AudioStreamBase<BufferType>::zipWith(*this, o, [](BufferType a, BufferType b) {
+			return a & b;
+			});
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType> AudioStreamBase<BufferType>::operator|(AudioStreamBase<BufferType> const& o) const
 	{
-		return AudioStreamBase<BufferType>();
+		return AudioStreamBase<BufferType>::zipWith(*this, o, [](BufferType a, BufferType b) {
+			return a | b;
+			});
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType> AudioStreamBase<BufferType>::operator>>(AudioStreamBase<BufferType> const& o) const
 	{
-		return AudioStreamBase<BufferType>();
+		BufferType* buffer = new BufferType[m_nLength + o.m_nLength];
+		std::memcpy(buffer, m_pBuffer.get(), m_nLength * sizeof(BufferType));
+		std::memcpy(buffer + m_nLength, o.m_pBuffer.get(), o.m_nLength * sizeof(BufferType));
+		return AudioStreamBase<BufferType>(buffer, m_nLength + o.m_nLength, ownership::TAKE, std::default_delete<BufferType[]>());
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType> AudioStreamBase<BufferType>::operator<<(AudioStreamBase<BufferType> const& o) const
 	{
-		return AudioStreamBase<BufferType>();
+		return (*this) >> o;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType>& AudioStreamBase<BufferType>::operator+=(AudioStreamBase<BufferType> const& o)
 	{
-		// TODO: insert return statement here
+		transform([](BufferType a, BufferType b) {
+			return a + b;
+			}, o);
+		return *this;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType>& AudioStreamBase<BufferType>::operator-=(AudioStreamBase<BufferType> const& o)
 	{
-		// TODO: insert return statement here
+		transform([](BufferType a, BufferType b) {
+			return a - b;
+			}, o);
+		return *this;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType>& AudioStreamBase<BufferType>::operator*=(AudioStreamBase<BufferType> const& o)
 	{
-		// TODO: insert return statement here
+		transform([](BufferType a, BufferType b) {
+			return a * b;
+			}, o);
+		return *this;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType>& AudioStreamBase<BufferType>::operator/=(AudioStreamBase<BufferType> const& o)
 	{
-		// TODO: insert return statement here
+		transform([](BufferType a, BufferType b) {
+			return a / b;
+			}, o);
+		return *this;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType>& AudioStreamBase<BufferType>::operator%=(AudioStreamBase<BufferType> const& o)
 	{
-		// TODO: insert return statement here
+		transform([](BufferType a, BufferType b) {
+			return std::fmod(a, b);
+			}, o);
+		return *this;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType>& AudioStreamBase<BufferType>::operator^=(AudioStreamBase<BufferType> const& o)
 	{
-		// TODO: insert return statement here
+		transform([](BufferType a, BufferType b) {
+			return a ^ b;
+			}, o);
+		return *this;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType>& AudioStreamBase<BufferType>::operator&=(AudioStreamBase<BufferType> const& o)
 	{
-		// TODO: insert return statement here
+		transform([](BufferType a, BufferType b) {
+			return a & b;
+			}, o);
+		return *this;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType>& AudioStreamBase<BufferType>::operator|=(AudioStreamBase<BufferType> const& o)
 	{
-		// TODO: insert return statement here
+		transform([](BufferType a, BufferType b) {
+			return a | b;
+			}, o);
+		return *this;
 	}
 
 #pragma endregion
@@ -588,97 +657,153 @@ namespace nyco {
 	template <typename BufferType>
 	AudioStreamBase<BufferType> AudioStreamBase<BufferType>::operator+(BufferType const& o) const
 	{
-		return AudioStreamBase<BufferType>();
+		AudioStreamBase<BufferType> stream = this->clone();
+		stream.transform([o](BufferType in) {
+			return in + o;
+			});
+		return stream;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType> AudioStreamBase<BufferType>::operator-(BufferType const& o) const
 	{
-		return AudioStreamBase<BufferType>();
+		AudioStreamBase<BufferType> stream = this->clone();
+		stream.transform([o](BufferType in) {
+			return in - o;
+			});
+		return stream;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType> AudioStreamBase<BufferType>::operator*(BufferType const& o) const
 	{
-		return AudioStreamBase<BufferType>();
+		AudioStreamBase<BufferType> stream = this->clone();
+		stream.transform([o](BufferType in) {
+			return in * o;
+			});
+		return stream;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType> AudioStreamBase<BufferType>::operator/(BufferType const& o) const
 	{
-		return AudioStreamBase<BufferType>();
+		AudioStreamBase<BufferType> stream = this->clone();
+		stream.transform([o](BufferType in) {
+			return in / o;
+			});
+		return stream;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType> AudioStreamBase<BufferType>::operator%(BufferType const& o) const
 	{
-		return AudioStreamBase<BufferType>();
+		AudioStreamBase<BufferType> stream = this->clone();
+		stream.transform([o](BufferType in) {
+			return std::fmod(in, o);
+			});
+		return stream;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType> AudioStreamBase<BufferType>::operator^(BufferType const& o) const
 	{
-		return AudioStreamBase<BufferType>();
+		AudioStreamBase<BufferType> stream = this->clone();
+		stream.transform([o](BufferType in) {
+			return in ^ o;
+			});
+		return stream;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType> AudioStreamBase<BufferType>::operator&(BufferType const& o) const
 	{
-		return AudioStreamBase<BufferType>();
+		AudioStreamBase<BufferType> stream = this->clone();
+		stream.transform([o](BufferType in) {
+			return in & o;
+			});
+		return stream;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType> AudioStreamBase<BufferType>::operator|(BufferType const& o) const
 	{
-		return AudioStreamBase<BufferType>();
+		AudioStreamBase<BufferType> stream = this->clone();
+		stream.transform([o](BufferType in) {
+			return in | o;
+			});
+		return stream;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType>& AudioStreamBase<BufferType>::operator+=(BufferType const& o)
 	{
-		// TODO: insert return statement here
+		transform([o](BufferType in) {
+			return in + o;
+			});
+		return *this;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType>& AudioStreamBase<BufferType>::operator-=(BufferType const& o)
 	{
-		// TODO: insert return statement here
+		transform([o](BufferType in) {
+			return in - o;
+			});
+		return *this;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType>& AudioStreamBase<BufferType>::operator*=(BufferType const& o)
 	{
-		// TODO: insert return statement here
+		transform([o](BufferType in) {
+			return in * o;
+			});
+		return *this;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType>& AudioStreamBase<BufferType>::operator/=(BufferType const& o)
 	{
-		// TODO: insert return statement here
+		transform([o](BufferType in) {
+			return in / o;
+			});
+		return *this;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType>& AudioStreamBase<BufferType>::operator%=(BufferType const& o)
 	{
-		// TODO: insert return statement here
+		transform([o](BufferType in) {
+			return std::fmod(in, o);
+			});
+		return *this;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType>& AudioStreamBase<BufferType>::operator^=(BufferType const& o)
 	{
-		// TODO: insert return statement here
+		transform([o](BufferType in) {
+			return in ^ o;
+			});
+		return *this;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType>& AudioStreamBase<BufferType>::operator&=(BufferType const& o)
 	{
-		// TODO: insert return statement here
+		transform([o](BufferType in) {
+			return in & o;
+			});
+		return *this;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType>& AudioStreamBase<BufferType>::operator|=(BufferType const& o)
 	{
-		// TODO: insert return statement here
+		transform([o](BufferType in) {
+			return in | o;
+			});
+		return *this;
 	}
 
 #pragma endregion
@@ -688,49 +813,81 @@ namespace nyco {
 	template <typename BufferType>
 	AudioStreamBase<BufferType> operator+(BufferType const& a, AudioStreamBase<BufferType> const& b)
 	{
-		return AudioStreamBase<BufferType>();
+		AudioStreamBase<BufferType> stream = b.clone();
+		stream.transform([a](BufferType in) {
+			return a + in;
+			});
+		return stream;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType> operator-(BufferType const& a, AudioStreamBase<BufferType> const& b)
 	{
-		return AudioStreamBase<BufferType>();
+		AudioStreamBase<BufferType> stream = b.clone();
+		stream.transform([a](BufferType in) {
+			return a - in;
+			});
+		return stream;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType> operator*(BufferType const& a, AudioStreamBase<BufferType> const& b)
 	{
-		return AudioStreamBase<BufferType>();
+		AudioStreamBase<BufferType> stream = b.clone();
+		stream.transform([a](BufferType in) {
+			return a * in;
+			});
+		return stream;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType> operator/(BufferType const& a, AudioStreamBase<BufferType> const& b)
 	{
-		return AudioStreamBase<BufferType>();
+		AudioStreamBase<BufferType> stream = b.clone();
+		stream.transform([a](BufferType in) {
+			return a / in;
+			});
+		return stream;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType> operator%(BufferType const& a, AudioStreamBase<BufferType> const& b)
 	{
-		return AudioStreamBase<BufferType>();
+		AudioStreamBase<BufferType> stream = b.clone();
+		stream.transform([a](BufferType in) {
+			return std::fmod(a, in);
+			});
+		return stream;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType> operator^(BufferType const& a, AudioStreamBase<BufferType> const& b)
 	{
-		return AudioStreamBase<BufferType>();
+		AudioStreamBase<BufferType> stream = b.clone();
+		stream.transform([a](BufferType in) {
+			return a ^ in;
+			});
+		return stream;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType> operator&(BufferType const& a, AudioStreamBase<BufferType> const& b)
 	{
-		return AudioStreamBase<BufferType>();
+		AudioStreamBase<BufferType> stream = b.clone();
+		stream.transform([a](BufferType in) {
+			return a & in;
+			});
+		return stream;
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType> operator|(BufferType const& a, AudioStreamBase<BufferType> const& b)
 	{
-		return AudioStreamBase<BufferType>();
+		AudioStreamBase<BufferType> stream = b.clone();
+		stream.transform([a](BufferType in) {
+			return a | in;
+			});
+		return stream;
 	}
 
 #pragma endregion
@@ -742,7 +899,9 @@ namespace nyco {
 	requires (std::is_integral_v<IntegralT>)
 		AudioStreamBase<BufferType> AudioStreamBase<BufferType>::operator<<(IntegralT const o) const
 	{
-		return AudioStreamBase<BufferType>();
+		AudioStreamBase<BufferType> stream = this->clone();
+		stream <<= o;
+		return stream;
 	}
 
 	template <typename BufferType>
@@ -750,7 +909,9 @@ namespace nyco {
 	requires (std::is_integral_v<IntegralT>)
 		AudioStreamBase<BufferType> AudioStreamBase<BufferType>::operator>>(IntegralT const o) const
 	{
-		return AudioStreamBase<BufferType>();
+		AudioStreamBase<BufferType> stream = this->clone();
+		stream >>= o;
+		return stream;
 	}
 
 	template <typename BufferType>
@@ -758,7 +919,25 @@ namespace nyco {
 	requires (std::is_integral_v<IntegralT>)
 		AudioStreamBase<BufferType>& AudioStreamBase<BufferType>::operator<<=(IntegralT const o)
 	{
-		return AudioStreamBase<BufferType>();
+		IntegralT shift = o;
+		if (shift >= m_nLength) {
+			shift = std::fmod(shift, m_nLength);
+		}
+		if (shift == 0) {
+			return *this;
+		}
+		if (shift < 0) {
+			return (*this) >>= shift;
+		}
+		BufferType* ptr = m_pBuffer.get();
+		for (int srcIndex = shift, dstIndex = 0; srcIndex < m_nLength; ++srcIndex, ++dstIndex) {
+			ptr[dstIndex] = ptr[srcIndex];
+		}
+		BufferType defaultValue = BufferType{};
+		for (int i = m_nLength - shift; i < m_nLength; ++i) {
+			ptr[i] = defaultValue;
+		}
+		return *this;
 	}
 
 	template <typename BufferType>
@@ -766,7 +945,25 @@ namespace nyco {
 	requires (std::is_integral_v<IntegralT>)
 		AudioStreamBase<BufferType>& AudioStreamBase<BufferType>::operator>>=(IntegralT const o)
 	{
-		return AudioStreamBase<BufferType>();
+		IntegralT shift = o;
+		if (shift >= m_nLength) {
+			shift = std::fmod(shift, m_nLength);
+		}
+		if (shift == 0) {
+			return *this;
+		}
+		if (shift < 0) {
+			return (*this) <<= shift;
+		}
+		BufferType* ptr = m_pBuffer.get();
+		for (int srcIndex = m_nLength - shift - 1, dstIndex = m_nLength - 1; srcIndex >= 0; --srcIndex, --dstIndex) {
+			ptr[dstIndex] = ptr[srcIndex];
+		}
+		BufferType defaultValue = BufferType{};
+		for (int i = 0; i < shift; ++i) {
+			ptr[i] = defaultValue;
+		}
+		return *this;
 	}
 
 #pragma endregion
@@ -852,20 +1049,70 @@ namespace nyco {
 
 	template <typename BufferType>
 	template <typename Function>
-	requires (std::is_same_v<std::invoke_result_t<Function, BufferType>, BufferType>)
+	requires (std::is_same_v<std::invoke_result_t<Function, BufferType, BufferType>, BufferType>)
 		AudioStreamBase<BufferType>& AudioStreamBase<BufferType>::transform(Function&& func, AudioStreamBase<BufferType> const& other)
 	{
 		BufferType* ptr = m_pBuffer.get();
 		for (int i = 0; i < m_nLength; ++i) {
 			ptr[i] = func(ptr[i], other[i]);
 		}
-		return this;
+		return *this;
+	}
+
+	template <typename BufferType>
+	template <typename IntegralT>
+	requires (std::is_integral_v<IntegralT>)
+		AudioStreamBase<BufferType>& AudioStreamBase<BufferType>::shiftLeft(IntegralT const o) {
+		return (*this) <<= o;
+	}
+
+	template <typename BufferType>
+	template <typename IntegralT>
+	requires (std::is_integral_v<IntegralT>)
+		AudioStreamBase<BufferType>& AudioStreamBase<BufferType>::shiftRight(IntegralT const o) {
+		return (*this) >>= o;
+	}
+
+	template <typename BufferType>
+	template <typename IntegralT>
+	requires (std::is_integral_v<IntegralT>)
+		AudioStreamBase<BufferType>& AudioStreamBase<BufferType>::rotateLeft(IntegralT const o) {
+		AudioStreamBase<BufferType> copy = this->clone();
+		return ((*this) <<= o) += (copy >>= (m_nLength - o));
+	}
+
+	template <typename BufferType>
+	template <typename IntegralT>
+	requires (std::is_integral_v<IntegralT>)
+		AudioStreamBase<BufferType>& AudioStreamBase<BufferType>::rotateRight(IntegralT const o) {
+		AudioStreamBase<BufferType> copy = this->clone();
+		return ((*this) >>= o) += (copy <<= (m_nLength - o));
 	}
 
 	template <typename BufferType>
 	AudioStreamBase<BufferType> AudioStreamBase<BufferType>::clone() const
 	{
 		return AudioStreamBase<BufferType>(m_pBuffer.get(), m_nLength, ownership::COPY);
+	}
+
+	template <typename BufferType>
+	BufferType* AudioStreamBase<BufferType>::begin() {
+		return m_pBuffer.get();
+	}
+
+	template <typename BufferType>
+	BufferType const* AudioStreamBase<BufferType>::begin() const {
+		return m_pBuffer.get();
+	}
+
+	template <typename BufferType>
+	BufferType* AudioStreamBase<BufferType>::end() {
+		return m_pBuffer.get() + m_nLength;
+	}
+
+	template <typename BufferType>
+	BufferType const* AudioStreamBase<BufferType>::end() const {
+		return m_pBuffer.get() + m_nLength;
 	}
 
 	template <typename BufferType>
@@ -880,7 +1127,7 @@ namespace nyco {
 
 	template <typename BufferType>
 	template <typename Function>
-	requires (std::is_same_v<std::invoke_result_t<Function, BufferType>, BufferType>)
+	requires (std::is_same_v<std::invoke_result_t<Function, BufferType, BufferType>, BufferType>)
 		AudioStreamBase<BufferType> AudioStreamBase<BufferType>::zipWith(AudioStreamBase<BufferType> const& a, AudioStreamBase<BufferType> const& b, Function&& func)
 	{
 		AudioStreamBase<BufferType> stream = a.clone();

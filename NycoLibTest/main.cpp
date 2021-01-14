@@ -15,18 +15,20 @@ int main() {
 
 	std::cout << doubleStream << std::endl;
 
+	doubleStream *= 2;
+
 	for (int i = 0; i < doubleStream.size(); ++i) {
 		std::cout << doubleStream[i] << std::endl;
 	}
 
-	for (int i = 0; i < doubleStream.size(); ++i) {
-		doubleStream[i] = doubleStream[i] * 2;
-	}
-
 	auto newStream = +doubleStream;
 
-	for (int i = 0; i < newStream.size(); ++i) {
-		std::cout << newStream[i] << std::endl;
+	std::cout << newStream << std::endl;
+
+	newStream.rotateRight(3);
+
+	for (auto a : newStream) {
+		std::cout << a << std::endl;
 	}
 
 	return 0;

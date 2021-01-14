@@ -168,8 +168,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AudioStream.h" />
+    <ClInclude Include="NycoMath.h" />
     <ClInclude Include="ownership.h" />
-    <ClInclude Include="_NycoLib.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

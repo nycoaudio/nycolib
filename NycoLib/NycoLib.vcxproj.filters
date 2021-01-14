@@ -29,7 +29,7 @@
     <ClInclude Include="ownership.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="_NycoLib.h">
+    <ClInclude Include="NycoMath.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
