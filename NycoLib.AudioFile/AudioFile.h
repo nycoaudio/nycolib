@@ -5,17 +5,27 @@
 
 
 namespace nyco {
-	enum class AudioFormats {
+	enum class AudioFormat {
 		WAV,
 		MP3,
 		OGG,
 		AAC
 	};
 
-	class AudioFileBasic {
+	struct AudioInformation {
+	public:
+		uint16_t channelCount;
+		uint32_t sampleRate;
+		uint16_t audioFormat;
+
+	public:
+		bool isPCM();
+	};
+
+	class AudioFileBase {
 	public:
 		// load file from disk
-		AudioFileBasic(char const *filePath, char const *mode);
+		AudioFileBase(char const* filePath, char const* mode);
 
 		// get channel data as std::shared_ptr<AudioStream>
 
@@ -31,8 +41,8 @@ namespace nyco {
 		std::fstream m_fsFileStream;
 	};
 
-	template <AudioFormats AudioFormat>
-	class AudioFile : AudioFileBasic {
+	template <AudioFormat AudioFormat>
+	class AudioFile : AudioFileBase {
 
 	};
 }

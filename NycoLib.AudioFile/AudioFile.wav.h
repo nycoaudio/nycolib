@@ -33,7 +33,7 @@ namespace nyco {
 	};
 
 	template <>
-	class AudioFile<AudioFormats::WAV> {
+	class AudioFile<AudioFormat::WAV> {
 
 	};
 }

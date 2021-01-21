@@ -68,12 +68,7 @@ namespace nyco {
 
 		explicit AudioStreamBase(BufferType* data, size_t length, ownership::copy);
 
-		//template <typename Deleter>
-		//explicit AudioStreamBase(std::shared_ptr<BufferType> data, size_t length, ownership::take_ownership, Deleter d);
-
 		explicit AudioStreamBase(std::shared_ptr<BufferType> data, size_t length, ownership::no_ownership);
-
-		//explicit AudioStreamBase(std::shared_ptr<BufferType> data, size_t length, ownership::copy);
 
 		// Copy Constructor
 		AudioStreamBase(AudioStreamBase<BufferType> const& stream) = delete;
@@ -378,33 +373,19 @@ namespace nyco {
 		using AudioStreamBase<T>::AudioStreamBase;
 	};
 
-	//template <>
-	//class AudioStream<double> : public AudioStreamBase<double> {
-	//public:
-	//	using AudioStreamBase<double>::AudioStreamBase;
-	//};
-
-	//template <>
-	//class AudioStream<byte> : public AudioStreamBase<byte> {
-	//public:
-	//	using AudioStreamBase<byte>::AudioStreamBase;
-
-	//};
-
-	//template <>
-	//class AudioStream<short> : public AudioStreamBase<short> {
-	//public:
-	//	using AudioStreamBase<short>::AudioStreamBase;
-	//};
-
-	//template <>
-	//class AudioStream<float> : public AudioStreamBase<float> {
-	//public:
-	//	using AudioStreamBase<float>::AudioStreamBase;
-	//};
+	template <typename BufferType>
+	using MultiChannelAudioStream = AudioStream<AudioStream<BufferType>>;
 }
 
 #pragma endregion
+
+namespace std {
+	// overloading this method since AudioStream % AudioStream uses std::fmod internally.
+	template <typename BufferType>
+	nyco::AudioStream<BufferType> fmod(nyco::AudioStream<BufferType> const& a, nyco::AudioStream<BufferType> const& b) {
+		return a % b;
+	}
+}
 
 #pragma region nyco - AudioStream - Definitions
 
