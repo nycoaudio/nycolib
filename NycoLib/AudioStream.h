@@ -1033,6 +1033,12 @@ namespace nyco {
 	requires (std::is_same_v<std::invoke_result_t<Function, BufferType, BufferType>, BufferType>)
 		AudioStreamBase<BufferType>& AudioStreamBase<BufferType>::transform(Function&& func, AudioStreamBase<BufferType> const& other)
 	{
+		if (other.m_nLength == 1) {
+			return transform([func](BufferType a) {
+				return func(a, other[0]);
+				});
+		}
+		assert(m_nLength == other.m_nLength);
 		BufferType* ptr = m_pBuffer.get();
 		for (int i = 0; i < m_nLength; ++i) {
 			ptr[i] = func(ptr[i], other[i]);
