@@ -168,7 +168,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AudioStream.h" />
-    <ClInclude Include="NycoMath.h" />
     <ClInclude Include="ownership.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
